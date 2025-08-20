@@ -1,3 +1,4 @@
+-- Active: 1755603023291@@127.0.0.1@5433@campus@miscompras
 
 DROP SCHEMA IF EXISTS miscompras CASCADE;
 CREATE SCHEMA IF NOT EXISTS miscompras;
@@ -138,3 +139,62 @@ CREATE INDEX IF NOT EXISTS idx_cp_id_producto
     FROM t
     GROUP BY dia
     ORDER BY dia;
+
+
+    DROP VIEW IF EXISTS miscompras.reporte_mes;
+
+    CREATE MATERIALIZED VIEW miscompras.reporte_mes AS
+    SELECT DATE_TRUNC('month', c.fecha) AS mes,
+        SUM(cp.total) AS total_ventas
+        FROM miscompras.compras c
+        JOIN miscompras.compras_productos cp USING(id_compra)
+        GROUP BY mes;
+
+    SELECT * FROM miscompras.reporte_mes;
+
+    REFRESH MATERIALIZED VIEW miscompras.reporte_mes;
+
+
+
+
+
+
+
+
+    -- TRIGGERS
+    CREATE OR REPLACE FUNCTION miscompras.trg_descuento_stock()
+    RETURNS TRIGGER LANGUAGE PLPGSQL AS
+    $$
+    BEGIN
+        UPDATE miscompras.productos
+        SET cantidad_stock = GREATEST(0, cantidad_stock - NEW.cantidad)
+        WHERE id_producto = NEW.id_producto;
+        RETURN NEW;
+    END;
+    $$;
+
+
+    DROP TRIGGER IF EXISTS compras_productos_descuento_stock ON miscompras.compras_productos;
+
+    CREATE TRIGGER compras_productos_descuento_stock
+    AFTER INSERT ON miscompras.compras_productos
+    FOR EACH ROW
+    EXECUTE FUNCTION miscompras.trg_descuento_stock();
+
+
+
+    SELECT nombre, miscompras.toMoney(precio_venta) as precio_venta
+    FROM miscompras.productos;
+
+
+    CREATE OR REPLACE FUNCTION miscompras.toMoney(p_numeric NUMERIC)
+    RETURNS VARCHAR
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE valor VARCHAR(255);
+    BEGIN
+        SELECT CONCAT('$', TO_CHAR(p_numeric, 'FM999G999G999D00'))
+        INTO valor;
+        RETURN valor;
+    END;
+    $$;

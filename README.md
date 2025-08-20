@@ -80,3 +80,54 @@
     ```sql
     SELECT *
     FROM
+
+
+20. materialized view mensual
+- `GREATES`
+    ```sql
+    DROP VIEW IF EXISTS miscompras.reporte_mes;
+
+    CREATE MATERIALIZED VIEW miscompras.reporte_mes AS
+    SELECT DATE_TRUNC('month', c.fecha) AS mes,
+        SUM(cp.total) AS total_ventas
+        FROM miscompras.compras c
+        JOIN miscompras.compras_productos cp USING(id_compra)
+        GROUP BY mes;
+
+    SELECT * FROM miscompras.reporte_mes;
+
+    REFRESH MATERIALIZED VIEW miscompras.reporte_mes;
+
+
+    ```
+
+
+24. Trigger: al insertar detalle de compra, descuenta stock
+- `GREATES`
+    ```sql
+    CREATE OR REPLACE FUNCTION miscompras.trg_descuento_stock()
+    RETURNS TRIGGER LANGUAGE PLPGSQL AS
+    $$
+    BEGIN
+        UPDATE miscompras.productos
+        SET cantidad_stock = GREATEST(0, cantidad_stock - NEW.cantidad)
+        WHERE id_producto = NEW.id_producto;
+        RETURN NEW;
+    END;
+    $$;
+
+
+    DROP TRIGGER IF EXISTS compras_productos_descuento_stock ON miscompras.compras_productos;
+
+    CREATE TRIGGER compras_productos_descuento_stock
+    AFTER INSERT ON miscompras.compras_productos
+    FOR EACH ROW
+    EXECUTE FUNCTION miscompras.trg_descuento_stock();
+    ```
+
+24. Funcion: mostrar el valor total en formato moneda
+- `TO_CHAR`
+    ```sql
+    
+    ```
+
